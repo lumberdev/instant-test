@@ -1,114 +1,136 @@
-'use client'
+'use client';
 
-import { init } from '@instantdb/react'
+import React, { useState } from 'react';
+import { init } from '@instantdb/react';
+import Todo from './components/Todo';
 
-import { useState, useRef } from 'react'
+const APP_ID = process.env.NEXT_PUBLIC_APP_ID;
 
-// ---------
-// Helpers
-// ---------
-function Button({ children, onClick }) {
-  return (
-    <button
-      className="px-2 py-1 outline hover:bg-gray-200 focus:outline-amber-500 focus:outline-2"
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  )
-}
-
-// ---------
-// App
-// ---------
-
-// Replace this with your own App ID from https://instantdb.com/dash
-const APP_ID = 'REPLACE_ME'
-
-// Initialize connection to InstantDB app
-const db = init({ appId: APP_ID })
+const db = init({ appId: APP_ID });
 
 function App() {
-  // Read from InstantDB
-  const { isLoading, error, data } = db.useQuery({ messages: {} })
-  const inputRef = useRef(null)
-  const [editId, setEditId] = useState(null)
-
-  if (isLoading) {
-    return <div>Fetching data...</div>
-  }
-  if (error) {
-    return <div className='p-2 font-mono'>Invalid `APP_ID`. Go to <a href="https://instantdb.com/dash" className='underline text-blue-500'>https://instantdb.com/dash</a> to get a new `APP_ID`</div>
-  }
-  const { messages } = data
-
-  const onSubmit = () => {
-    console.log("(TODO): Add message")
-  }
-
-  const onKeyDown = (e: any) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      onSubmit()
-    }
-  };
-
-  return (
-    <div className='p-4 space-y-6 w-full sm:w-[640px] mx-auto'>
-      <h1 className='text-2xl font-bold'>Logged in as: (TODO) Implement auth</h1>
-      <div className="flex flex-col space-y-2">
-        <div className="flex justify-between border-b border-b-gray-500 pb-2 space-x-2">
-          <div className="flex flex-1" >
-            <input
-              ref={inputRef}
-              className="flex-1 py-1 px-2 focus:outline-2 focus:outline-amber-500"
-              autoFocus
-              placeholder="Enter some message..."
-              onKeyDown={onKeyDown}
-              type="text"
-            />
-          </div>
-          <Button onClick={onSubmit}>Submit</Button>
-
-        </div>
-        <div className="truncate text-xs text-gray-500">
-          (TODO) Replace me with a typing indicator!
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {messages.map((message) => (
-          <div key={message.id}>
-            {editId === message.id ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  console.log("(TODO) Implement update message")
-                  setEditId(null)
-                }}
-              >
-                <input
-                  defaultValue={message.text}
-                  autoFocus
-                  type="text"
-                />
-              </form>
-            ) : (
-              <div className="flex justify-between">
-                <p>(TODO) Show message author: {message.text}</p>
-                <span className="space-x-4">
-                  <Button onClick={() => setEditId(message.id)}>Edit</Button>
-                  <Button onClick={() => console.log("(TODO) Implement delete message")}>Delete</Button>
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <div className="border-b border-b-gray-300 pb-2">(TODO) Who's online:</div>
-      <Button onClick={() => console.log("(TODO) Implement delete all")}>Delete All</Button>
-    </div>
-  )
+	const { isLoading, user, error } = db.useAuth();
+	if (isLoading) {
+		return <div>Loading...</div>;
+	}
+	if (error) {
+		return <div>Uh oh! {error.message}</div>;
+	}
+	if (user) {
+		return <Todo user={user}/>;
+	}
+	return <Login />;
 }
 
-export default App
+function Login() {
+	const [sentEmail, setSentEmail] = useState('');
+	return (
+		<div style={authStyles.container}>
+			{!sentEmail ? (
+				<Email setSentEmail={setSentEmail} />
+			) : (
+				<MagicCode sentEmail={sentEmail} />
+			)}
+		</div>
+	);
+}
+
+function Email({ setSentEmail }) {
+	const [email, setEmail] = useState('');
+
+	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		if (!email) return;
+		setSentEmail(email);
+		db.auth.sendMagicCode({ email }).catch((err) => {
+			alert('Uh oh :' + err.body?.message);
+			setSentEmail('');
+		});
+	};
+
+	return (
+		<form onSubmit={handleSubmit} style={authStyles.form}>
+			<h2 style={{ color: '#333', marginBottom: '20px' }}>Let's log you in!</h2>
+			<div>
+				<input
+					style={authStyles.input}
+					placeholder='Enter your email'
+					type='email'
+					value={email}
+					onChange={(e) => setEmail(e.target.value)}
+				/>
+			</div>
+			<div>
+				<button type='submit' style={authStyles.button}>
+					Send Code
+				</button>
+			</div>
+		</form>
+	);
+}
+
+function MagicCode({ sentEmail }) {
+	const [code, setCode] = useState('');
+
+	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		db.auth.signInWithMagicCode({ email: sentEmail, code }).catch((err) => {
+			alert('Uh oh :' + err.body?.message);
+			setCode('');
+		});
+	};
+
+	return (
+		<form onSubmit={handleSubmit} style={authStyles.form}>
+			<h2 style={{ color: '#333', marginBottom: '20px' }}>
+				Okay, we sent you an email! What was the code?
+			</h2>
+			<div>
+				<input
+					style={authStyles.input}
+					type='text'
+					placeholder='123456...'
+					value={code}
+					onChange={(e) => setCode(e.target.value)}
+				/>
+			</div>
+			<button type='submit' style={authStyles.button}>
+				Verify
+			</button>
+		</form>
+	);
+}
+
+const authStyles: Record<string, React.CSSProperties> = {
+	container: {
+		display: 'flex',
+		justifyContent: 'center',
+		alignItems: 'center',
+		height: '100vh',
+	},
+	form: {
+		display: 'flex',
+		flexDirection: 'column',
+		alignItems: 'center',
+		justifyContent: 'center',
+		height: '100vh',
+		fontFamily: 'Arial, sans-serif',
+	},
+	input: {
+		padding: '10px',
+		marginBottom: '15px',
+		border: '1px solid #ddd',
+		borderRadius: '5px',
+		width: '300px',
+	},
+	button: {
+		padding: '10px 20px',
+		backgroundColor: '#007bff',
+		color: 'white',
+		border: 'none',
+		borderRadius: '5px',
+		cursor: 'pointer',
+	},
+};
+
+export default App;
