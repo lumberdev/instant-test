@@ -1,14 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { init } from '@instantdb/react';
-import Todo from './components/Todo';
-
-const APP_ID = process.env.NEXT_PUBLIC_APP_ID;
-
-const db = init({ appId: APP_ID });
+import Router from 'next/navigation';
+import db from '@/lib/instant/db';
 
 function App() {
+	const router = Router.useRouter();
 	const { isLoading, user, error } = db.useAuth();
 	if (isLoading) {
 		return <div>Loading...</div>;
@@ -17,7 +14,7 @@ function App() {
 		return <div>Uh oh! {error.message}</div>;
 	}
 	if (user) {
-		return <Todo user={user}/>;
+		router.push('/dashboard');
 	}
 	return <Login />;
 }
@@ -37,7 +34,6 @@ function Login() {
 
 function Email({ setSentEmail }) {
 	const [email, setEmail] = useState('');
-
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (!email) return;
@@ -71,7 +67,6 @@ function Email({ setSentEmail }) {
 
 function MagicCode({ sentEmail }) {
 	const [code, setCode] = useState('');
-
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		db.auth.signInWithMagicCode({ email: sentEmail, code }).catch((err) => {
